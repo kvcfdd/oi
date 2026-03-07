@@ -16,11 +16,12 @@
 ## 🛠️ 环境准备
 
 1. **Python 环境**：请确保已安装 Python 3.7 或更高版本。
-2. **安装依赖库**：脚本依赖 `requests` 和 `beautifulsoup4`。请在终端执行以下命令：
+2. **克隆项目并安装依赖库**：脚本依赖 `requests` 和 `beautifulsoup4`。请在终端执行以下命令：
 
-   ```bash
-   pip install requests beautifulsoup4 -i https://pypi.tuna.tsinghua.edu.cn/simple
-   ```
+```bash
+git clone https://github.com/kvcfdd/oi.git
+pip install requests beautifulsoup4 -i https://pypi.tuna.tsinghua.edu.cn/simple
+```
 
 ## ⚙️ 运行前必看：修改配置路径！
 
@@ -28,12 +29,12 @@
 
 例如：
 
-    ```bash
-    # 修改前
-    BASE_SAVE_PATH = "E:/zzz/miao-plugin/resources/meta-gs/weapon"
-    # 修改后 (请根据你的实际情况填写绝对路径)
-    BASE_SAVE_PATH = "/你的云崽/plugins/miao-plugin/resources/meta-gs/weapon"
-    ```
+```py
+# 修改前
+BASE_SAVE_PATH = "E:/zzz/miao-plugin/resources/meta-gs/weapon"
+# 修改后 (请根据你的实际情况填写绝对路径)
+BASE_SAVE_PATH = "/你的云崽/plugins/miao-plugin/resources/meta-gs/weapon"
+```
 
 ## 🚀 使用说明
 
