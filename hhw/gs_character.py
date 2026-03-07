@@ -385,7 +385,11 @@ def fetch_and_parse(url, target_id, char_path_slug):
 
     def clean_desc(td_html):
         td_html = re.sub(r'[\r\n\t]+', '', td_html)
-        td_html = re.sub(r'\{LINK#[^\}]+\}([^<]+)', r'<u>\1</u>', td_html)
+        if STRIP_HTML_TAGS:
+            td_html = re.sub(r'\{LINK#[^\}]+\}', '', td_html)
+        else:
+            td_html = re.sub(r'\{LINK#[^\}]+\}([^<]+)', r'<u>\1</u>', td_html)
+            td_html = re.sub(r'\{LINK#[^\}]+\}', '', td_html)
 
         def fix_i_tag(m):
             return "<i>" + re.sub(r'\s*<br\s*/?>\s*', '</i><br><i>', m.group(1), flags=re.IGNORECASE) + "</i>"
@@ -432,6 +436,17 @@ def fetch_and_parse(url, target_id, char_path_slug):
                     
             res = str(line_soup).strip()
             if res: cleaned.append(res)
+
+        cut_idx = -1
+        for i, line in enumerate(cleaned):
+            plain_text = re.sub(r'<[^>]+>', '', line).strip()
+            if "Buffed State:" in plain_text:
+                cut_idx = i
+                break
+                
+        if cut_idx != -1:
+            cleaned = cleaned[cut_idx + 1:]
+            
         return cleaned
 
     bili_flavor_texts = {'e': [], 'q': []}
@@ -617,7 +632,8 @@ def fetch_and_parse(url, target_id, char_path_slug):
 
         target_active_tables = {}
         extra_passive_tables = []
-        
+
+        valid_active_tables = []
         for t in active_tables:
             a_tag = t.find('a')
             if not a_tag:
@@ -637,20 +653,27 @@ def fetch_and_parse(url, target_id, char_path_slug):
                 skill_id_str = full_id_str
                 
             t_id = int(skill_id_str)
-            # 按早期喵喵格式与数据源格式的id规律，推断技能类型
-            if skill_id_str.endswith('1'):
-                letter = 'a'
-            elif skill_id_str.endswith('2'):
-                letter = 'e'
-            elif skill_id_str.endswith('9'):
-                letter = 'q'
-            else:
-                letter = None
-                
-            if letter and letter not in target_active_tables:
-                target_active_tables[letter] = (t, t_id)
-            else:
-                extra_passive_tables.append((t, t_id))
+            valid_active_tables.append((t, t_id, skill_id_str))
+
+        if len(valid_active_tables) == 3:
+            letters = ['a', 'e', 'q']
+            for i, (t, t_id, _) in enumerate(valid_active_tables):
+                target_active_tables[letters[i]] = (t, t_id)
+        else:
+            for t, t_id, skill_id_str in valid_active_tables:
+                if skill_id_str.endswith('1'):
+                    letter = 'a'
+                elif skill_id_str.endswith('2'):
+                    letter = 'e'
+                elif skill_id_str.endswith('9'):
+                    letter = 'q'
+                else:
+                    letter = None
+                    
+                if letter and letter not in target_active_tables:
+                    target_active_tables[letter] = (t, t_id)
+                else:
+                    extra_passive_tables.append((t, t_id))
 
         def parse_dmg_table(dmg_table, letter_for_nahida=None, is_special=False):
             t_tables = []
