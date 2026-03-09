@@ -481,7 +481,7 @@ def fetch_and_parse(url, target_id, char_path_slug):
             print(f"      [警告] 请求B站WIKI失败: {e}")
 
     injected_hyp_links = set()
-    def extract_and_fetch_links(soup_obj):
+    def extract_and_fetch_links(soup_obj, own_names):
         effects = []
         for a_tag in soup_obj.find_all('a'):
             href = a_tag.get('href', '')
@@ -492,6 +492,11 @@ def fetch_and_parse(url, target_id, char_path_slug):
                     u_tag.append(child)
                 a_tag.replace_with(u_tag)
                 if not INSERT_EXTERNAL_LINKS: continue
+                
+                # 如果是自身技能/天赋，直接跳过处理与外链抓取
+                if name in own_names:
+                    continue
+
                 if href not in GLOBAL_HYP_CACHE:
                     GLOBAL_HYP_CACHE[href] = None
                     full_url = "https://gensh.honeyhunterworld.com" + href
@@ -516,8 +521,12 @@ def fetch_and_parse(url, target_id, char_path_slug):
                                 main_img = h_soup.find('img', class_='main_image')
                                 if main_img and main_img.get('alt'):
                                     real_name = main_img.get('alt').strip()
+
+                                if real_name in own_names:
+                                    continue
+
                                 inner_soup = BeautifulSoup(desc_html, 'html.parser')
-                                nested_effs = extract_and_fetch_links(inner_soup)
+                                nested_effs = extract_and_fetch_links(inner_soup, own_names)
                                 
                                 GLOBAL_HYP_CACHE[href] = {
                                     "href": href,
@@ -527,17 +536,26 @@ def fetch_and_parse(url, target_id, char_path_slug):
                                 }
                     except Exception as e:
                         print(f"      [警告] 请求外链机制数据失败 {href}: {e}")
+                
                 if GLOBAL_HYP_CACHE.get(href):
-                    effects.append(GLOBAL_HYP_CACHE[href])
+                    cached_eff = GLOBAL_HYP_CACHE[href]
+                    if cached_eff.get('name') not in own_names:
+                        effects.append(cached_eff)
                     
         return effects
 
-    def process_skill_desc(desc_td):
-        effects = extract_and_fetch_links(desc_td)
+    def process_skill_desc(desc_td, own_names=None):
+        if own_names is None:
+            own_names = set()
+            
+        effects = extract_and_fetch_links(desc_td, own_names)
         main_desc = clean_desc(desc_td.decode_contents())
         flat_effects = []
+        
         def add_effs(eff_list):
             for eff in eff_list:
+                if eff['name'] in own_names:
+                    continue
                 if not any(e['href'] == eff['href'] for e in flat_effects):
                     flat_effects.append(eff)
                 add_effs(eff.get('nested', []))
@@ -675,6 +693,20 @@ def fetch_and_parse(url, target_id, char_path_slug):
                 else:
                     extra_passive_tables.append((t, t_id))
 
+        own_talent_names = set()
+        for _, (t, _) in target_active_tables.items():
+            a = t.find('a')
+            if a: own_talent_names.add(a.text.strip())
+        for t in passive_tables:
+            a = t.find('a')
+            if a: own_talent_names.add(a.text.strip())
+        for t, _ in extra_passive_tables:
+            a = t.find('a')
+            if a: own_talent_names.add(a.text.strip())
+        for t in cons_tables[:6]:
+            a = t.find('a')
+            if a: own_talent_names.add(a.text.strip())
+
         def parse_dmg_table(dmg_table, letter_for_nahida=None, is_special=False):
             t_tables = []
             parsed_data = {}
@@ -811,7 +843,7 @@ def fetch_and_parse(url, target_id, char_path_slug):
             t_tables, parsed_data = parse_dmg_table(dmg_table, letter)
             talent_data[letter] = parsed_data
 
-            c_desc = process_skill_desc(desc_td)
+            c_desc = process_skill_desc(desc_td, own_talent_names)
             if letter in ['e', 'q'] and not is_traveler:
                 if not c_desc or not c_desc[-1].strip().startswith('<i>'):
                     fetch_bili_flavor()
@@ -842,7 +874,7 @@ def fetch_and_parse(url, target_id, char_path_slug):
                 if desc_td:
                     passives.append({
                         "name": p_name,
-                        "desc": process_skill_desc(desc_td)
+                        "desc": process_skill_desc(desc_td, own_talent_names)
                     })
 
         for item in extra_passive_tables:
@@ -866,7 +898,7 @@ def fetch_and_parse(url, target_id, char_path_slug):
                     if t_id is not None:
                         passive_item["id"] = t_id
                     passive_item["name"] = p_name
-                    passive_item["desc"] = process_skill_desc(desc_td)
+                    passive_item["desc"] = process_skill_desc(desc_td, own_talent_names)
                     
                     if t_tables:
                         passive_item["tables"] = t_tables
@@ -882,7 +914,7 @@ def fetch_and_parse(url, target_id, char_path_slug):
                 
             tr_list = t.find('tbody').find_all('tr', recursive=False) if t.find('tbody') else t.find_all('tr', recursive=False)
             c_desc_td = tr_list[1].find('td')
-            cons_dict[str(i+1)] = {"name": c_name, "desc": process_skill_desc(c_desc_td)}
+            cons_dict[str(i+1)] = {"name": c_name, "desc": process_skill_desc(c_desc_td, own_talent_names)}
         
         talentCons = {"a": 0, "e": 0, "q": 0}
         for i in [3, 5]:
